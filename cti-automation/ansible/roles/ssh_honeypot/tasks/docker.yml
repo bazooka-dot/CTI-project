@@ -1,34 +1,34 @@
 ---
-- name: Install Docker on Debian/Ubuntu
-  apt:
-    name:
-      - docker.io
-      - python3-docker
-    state: present
-    update_cache: yes
-  when: ansible_facts['pkg_mgr'] == 'apt' and ensure_docker | bool
-
-- name: Install Docker on RHEL/OracleLinux
-  yum:
-    name:
-      - docker
-      - python3-docker
-    state: present
-  when: ansible_facts['pkg_mgr'] == 'yum' and ensure_docker | bool
-
-- name: Ensure Docker running
-  service:
+- name: Verify Docker is installed and running
+  systemd:
     name: docker
     state: started
     enabled: yes
+  become: yes
 
-- name: Ensure docker compose present (v2 plugin check)
-  shell: |
-    if docker compose version >/dev/null 2>&1; then
-      echo "ok"
-    else
-      exit 2
-    fi
-  register: compose_check
+- name: Add user to docker group
+  user:
+    name: "{{ ansible_user }}"
+    groups: docker
+    append: yes
+  become: yes
+  notify: reset ssh connection
+
+- name: Verify Docker Compose is available
+  shell: docker compose version
+  register: compose_version
   changed_when: false
-  failed_when: compose_check.rc != 0
+
+- name: Show Docker Compose version
+  debug:
+    msg: "Docker Compose version: {{ compose_version.stdout }}"
+
+- name: Test Docker connectivity
+  shell: docker info
+  register: docker_info
+  changed_when: false
+
+- name: Confirm Docker is operational
+  debug:
+    msg: "Docker is running successfully"
+  when: docker_info.rc == 0

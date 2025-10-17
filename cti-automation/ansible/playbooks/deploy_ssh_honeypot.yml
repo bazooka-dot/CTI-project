@@ -1,8 +1,116 @@
 ---
-- name: Deploy SSH honeypot(s) to decoy(s)
-  hosts: decoys
-  become: true
-  collections:
-    - community.docker
-  roles:
-    - role: ssh_honeypot
+- name: Create honeypot base directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  loop:
+    - "{{ honeypot_base_dir }}"
+    - "{{ honeypot_log_dir }}"
+    - "{{ honeypot_config_dir }}"
+    - "{{ honeypot_data_dir }}"
+  become: yes
+
+- name: Create honeypot data subdirectories
+  file:
+    path: "{{ honeypot_data_dir }}/{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  loop:
+    - "cowrie/var/log"
+    - "cowrie/var/lib"
+    - "cowrie/etc"
+  become: yes
+
+- name: Copy SSH & Telnet honeypot docker-compose from Honeypots folder
+  copy:
+    src: "{{ playbook_dir }}/../../Honeypots/ssh & telnet/docker-compose.yml"
+    dest: "{{ honeypot_config_dir }}/docker-compose.yml"
+    mode: '0644'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  become: yes
+
+- name: Copy SSH & Telnet honeypot init script from Honeypots folder
+  copy:
+    src: "{{ playbook_dir }}/../../Honeypots/ssh & telnet/init-config.sh"
+    dest: "{{ honeypot_config_dir }}/init-config.sh"
+    mode: '0755'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  become: yes
+
+- name: Include Docker verification tasks
+  include_tasks: docker.yml
+
+- name: Stop existing honeypot containers (cleanup)
+  shell: |
+    cd {{ honeypot_config_dir }}
+    docker compose down --remove-orphans || true
+  become_user: "{{ ansible_user }}"
+  ignore_errors: yes
+
+- name: Pull latest honeypot images
+  shell: |
+    cd {{ honeypot_config_dir }}
+    docker compose pull
+  become_user: "{{ ansible_user }}"
+  register: pull_result
+
+- name: Show image pull results
+  debug:
+    var: pull_result.stdout_lines
+
+- name: Deploy SSH & Telnet honeypots
+  shell: |
+    cd {{ honeypot_config_dir }}
+    docker compose up -d
+  become_user: "{{ ansible_user }}"
+  register: deploy_result
+
+- name: Show deployment results
+  debug:
+    var: deploy_result.stdout_lines
+
+- name: Wait for containers to start
+  wait_for:
+    timeout: 10
+
+- name: Verify honeypot containers are running
+  shell: |
+    cd {{ honeypot_config_dir }}
+    docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
+  become_user: "{{ ansible_user }}"
+  register: container_status
+
+- name: Display container status
+  debug:
+    msg: "{{ container_status.stdout_lines }}"
+
+- name: Test SSH honeypot connectivity
+  wait_for:
+    host: "{{ ansible_host }}"
+    port: 2222
+    timeout: 30
+  delegate_to: localhost
+  ignore_errors: yes
+  register: ssh_test
+
+- name: Test Telnet honeypot connectivity
+  wait_for:
+    host: "{{ ansible_host }}"
+    port: 2223
+    timeout: 30
+  delegate_to: localhost
+  ignore_errors: yes
+  register: telnet_test
+
+- name: Show connectivity test results
+  debug:
+    msg:
+      - "SSH Honeypot (port 2222): {{ 'ACCESSIBLE' if ssh_test is succeeded else 'NOT ACCESSIBLE' }}"
+      - "Telnet Honeypot (port 2223): {{ 'ACCESSIBLE' if telnet_test is succeeded else 'NOT ACCESSIBLE' }}"

@@ -1,0 +1,21 @@
+---
+- name: reset ssh connection
+  meta: reset_connection
+
+- name: restart docker
+  systemd:
+    name: docker
+    state: restarted
+  become: yes
+
+- name: restart ssh honeypot
+  shell: |
+    cd /opt/honeypot/config
+    docker compose -f ssh-telnet-compose.yml restart
+  become_user: ubuntu
+
+- name: restart http honeypot
+  shell: |
+    cd /opt/honeypot/config
+    docker compose -f http-compose.yml restart
+  become_user: ubuntu
