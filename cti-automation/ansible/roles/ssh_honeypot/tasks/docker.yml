@@ -1,34 +1,48 @@
 ---
-- name: Verify Docker is installed and running
+- name: Check if Docker is running
   systemd:
     name: docker
     state: started
-    enabled: yes
   become: yes
 
-- name: Add user to docker group
+- name: Check Docker Compose v2 availability
+  shell: docker compose version
+  register: docker_compose_v2_check
+  become_user: "{{ honeypot_user }}"
+  ignore_errors: yes
+
+- name: Check Docker Compose v1 availability (fallback)
+  shell: docker-compose version
+  register: docker_compose_v1_check
+  become_user: "{{ honeypot_user }}"
+  ignore_errors: yes
+  when: docker_compose_v2_check.rc != 0
+
+- name: Set Docker Compose command
+  set_fact:
+    docker_compose_cmd: "{{ 'docker compose' if docker_compose_v2_check.rc == 0 else 'docker-compose' }}"
+
+- name: Display Docker Compose version and command
+  debug:
+    msg: 
+      - "Docker Compose command: {{ docker_compose_cmd }}"
+      - "Version info: {{ docker_compose_v2_check.stdout if docker_compose_v2_check.rc == 0 else docker_compose_v1_check.stdout }}"
+
+- name: Verify Docker Compose is working
+  assert:
+    that:
+      - docker_compose_v2_check.rc == 0 or docker_compose_v1_check.rc == 0
+    fail_msg: "Neither 'docker compose' nor 'docker-compose' is available"
+    success_msg: "Docker Compose is available"
+
+- name: Check Docker daemon status
+  shell: docker info
+  register: docker_info
+  become_user: "{{ honeypot_user }}"
+
+- name: Ensure user is in docker group
   user:
-    name: "{{ ansible_user }}"
+    name: "{{ honeypot_user }}"
     groups: docker
     append: yes
   become: yes
-  notify: reset ssh connection
-
-- name: Verify Docker Compose is available
-  shell: docker compose version
-  register: compose_version
-  changed_when: false
-
-- name: Show Docker Compose version
-  debug:
-    msg: "Docker Compose version: {{ compose_version.stdout }}"
-
-- name: Test Docker connectivity
-  shell: docker info
-  register: docker_info
-  changed_when: false
-
-- name: Confirm Docker is operational
-  debug:
-    msg: "Docker is running successfully"
-  when: docker_info.rc == 0
