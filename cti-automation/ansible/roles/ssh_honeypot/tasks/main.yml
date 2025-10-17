@@ -20,14 +20,14 @@
 
 - name: Stop existing honeypot containers (cleanup)
   shell: |
-    cd {{ honeypot_cowrie_dir }} && docker compose down --remove-orphans || true
-    cd {{ honeypot_http_dir }} && docker compose down --remove-orphans || true
+    cd {{ honeypot_cowrie_dir }} && {{ docker_compose_cmd }} down --remove-orphans || true
+    cd {{ honeypot_http_dir }} && {{ docker_compose_cmd }} down --remove-orphans || true
   become_user: "{{ honeypot_user }}"
   ignore_errors: yes
 
 - name: Pull latest honeypot images
   shell: |
-    cd {{ item }} && docker compose pull || true
+    cd {{ item }} && {{ docker_compose_cmd }} pull || true
   loop:
     - "{{ honeypot_cowrie_dir }}"
     - "{{ honeypot_http_dir }}"
@@ -37,14 +37,14 @@
 - name: Start Cowrie SSH/Telnet honeypot
   shell: |
     cd {{ honeypot_cowrie_dir }}
-    docker compose up -d
+    {{ docker_compose_cmd }} up -d
   become_user: "{{ honeypot_user }}"
   register: cowrie_deploy_result
 
 - name: Start HTTP honeypot
   shell: |
     cd {{ honeypot_http_dir }}
-    docker compose up -d
+    {{ docker_compose_cmd }} up -d
   become_user: "{{ honeypot_user }}"
   register: http_deploy_result
 
@@ -55,20 +55,21 @@
 - name: Verify Cowrie containers are running
   shell: |
     cd {{ honeypot_cowrie_dir }}
-    docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
+    {{ docker_compose_cmd }} ps
   become_user: "{{ honeypot_user }}"
   register: cowrie_status
 
 - name: Verify HTTP containers are running
   shell: |
     cd {{ honeypot_http_dir }}
-    docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
+    {{ docker_compose_cmd }} ps
   become_user: "{{ honeypot_user }}"
   register: http_status
 
 - name: Display deployment results
   debug:
     msg:
+      - "Docker Compose Command Used: {{ docker_compose_cmd }}"
       - "Cowrie Deployment: {{ 'SUCCESS' if cowrie_deploy_result.rc == 0 else 'FAILED' }}"
       - "HTTP Deployment: {{ 'SUCCESS' if http_deploy_result.rc == 0 else 'FAILED' }}"
       - "Cowrie Status: {{ cowrie_status.stdout_lines }}"

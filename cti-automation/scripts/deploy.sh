@@ -207,4 +207,4 @@ main() {
     echo -e "${YELLOW}Note: Managing existing honeypots on decoy machine${NC}"
 }
 
-main "$@"
+main "$@"v
