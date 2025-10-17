@@ -1,0 +1,4 @@
+---
+# Host-specific overrides (optional)
+ensure_docker: true
+compose_cmd: "docker compose"

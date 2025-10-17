@@ -1,0 +1,8 @@
+---
+- name: Deploy SSH honeypot(s) to decoy(s)
+  hosts: decoys
+  become: true
+  collections:
+    - community.docker
+  roles:
+    - role: ssh_honeypot

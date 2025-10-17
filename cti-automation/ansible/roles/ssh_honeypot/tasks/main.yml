@@ -1,0 +1,54 @@
+---
+- name: Docker prerequisites
+  include_tasks: docker.yml
+
+- name: Ensure remote base directory exists
+  file:
+    path: /opt/honeypots
+    state: directory
+    mode: '0755'
+
+- name: Sync honeypot directory to remote
+  synchronize:
+    src: "{{ item.local_src }}/"
+    dest: "{{ item.remote_dir }}/"
+    rsync_opts:
+      - "--delete"
+  loop: "{{ honeypots }}"
+
+- name: Ensure compose file exists on remote
+  stat:
+    path: "{{ item.remote_dir }}/{{ item.compose_file }}"
+  register: compose_stat
+  loop: "{{ honeypots }}"
+  failed_when: "'false' in [ (compose_stat.results[loop.index0].stat.exists | default(false)) | ternary('true','false') ]"
+
+- name: Make initializer executable when present
+  file:
+    path: "{{ item.remote_dir }}/{{ item.initializer }}"
+    mode: '0755'
+  when: item.initializer is defined and item.initializer != '' and lookup('ansible.builtin.fileglob', item.local_src + '/' + item.initializer) | length > 0
+  loop: "{{ honeypots }}"
+
+- name: Run initializer if present
+  command: "./{{ item.initializer }}"
+  args:
+    chdir: "{{ item.remote_dir }}"
+  when: item.initializer is defined and item.initializer != '' and lookup('ansible.builtin.fileglob', item.local_src + '/' + item.initializer) | length > 0
+  register: init_res
+  loop: "{{ honeypots }}"
+
+- name: Compose up -d per honeypot
+  shell: "{{ compose_cmd }} up -d --remove-orphans"
+  args:
+    chdir: "{{ item.remote_dir }}"
+  loop: "{{ honeypots }}"
+
+- name: Wait for service port to be reachable (healthcheck)
+  wait_for:
+    host: 127.0.0.1
+    port: "{{ item.health.port }}"
+    timeout: "{{ (item.health.retries | int) * (item.health.delay | int) + 10 }}"
+    state: started
+  delegate_to: "{{ inventory_hostname }}"
+  loop: "{{ honeypots }}"
