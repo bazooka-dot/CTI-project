@@ -28,7 +28,7 @@
 
   post_tasks:
     - name: Display final container status
-      shell: docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+      shell: docker ps
       become_user: "{{ ansible_user }}"
       register: final_status
     
@@ -36,7 +36,11 @@
       debug:
         msg:
           - "=== Honeypot Management Complete ==="
+          - "Running Containers:"
           - "{{ final_status.stdout_lines }}"
-          - "SSH Honeypot: {{ ansible_host }}:{{ ssh_honeypot_port }}"
-          - "Telnet Honeypot: {{ ansible_host }}:{{ telnet_honeypot_port }}"
-          - "HTTP Honeypot: http://{{ ansible_host }}:{{ http_honeypot_port }}"
+          - ""
+          - "Access Points:"
+          - "SSH Honeypot: {{ ansible_host }}:2222"
+          - "Telnet Honeypot: {{ ansible_host }}:2223"
+          - "HTTP Honeypot: http://{{ ansible_host }}"
+          - "HTTP Frontend: http://{{ ansible_host }}:8080"

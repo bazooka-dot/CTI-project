@@ -133,20 +133,20 @@ verify_deployment() {
     
     sleep 10
     
-    # Show all running containers
+    # Show all running containers with simple docker ps
     print_status "Current container status:"
     ansible honeypots -i "ansible/inventory/hosts.ini" -m shell \
-        -a "docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'" \
+        -a "docker ps" \
         --become-user=ubuntu
     
     # Check specific honeypot logs
     print_status "Recent honeypot logs:"
     ansible honeypots -i "ansible/inventory/hosts.ini" -m shell \
-        -a "cd /home/ubuntu/honeypot/cowrie && echo '=== COWRIE ===' && docker compose logs --tail=3" \
+        -a "cd /home/ubuntu/honeypot/cowrie && echo '=== COWRIE ===' && (docker compose logs --tail=3 2>/dev/null || docker-compose logs --tail=3)" \
         --become-user=ubuntu || true
     
     ansible honeypots -i "ansible/inventory/hosts.ini" -m shell \
-        -a "cd /home/ubuntu/honeypot/http && echo '=== HTTP ===' && docker compose logs --tail=3" \
+        -a "cd /home/ubuntu/honeypot/http && echo '=== HTTP ===' && (docker compose logs --tail=3 2>/dev/null || docker-compose logs --tail=3)" \
         --become-user=ubuntu || true
     
     print_status "Verification completed"

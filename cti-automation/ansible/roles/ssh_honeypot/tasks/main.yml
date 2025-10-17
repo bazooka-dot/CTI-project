@@ -66,11 +66,23 @@
   become_user: "{{ honeypot_user }}"
   register: http_status
 
+- name: Get all running containers
+  shell: docker ps
+  become_user: "{{ honeypot_user }}"
+  register: all_containers
+
 - name: Display deployment results
   debug:
     msg:
       - "Docker Compose Command Used: {{ docker_compose_cmd }}"
       - "Cowrie Deployment: {{ 'SUCCESS' if cowrie_deploy_result.rc == 0 else 'FAILED' }}"
       - "HTTP Deployment: {{ 'SUCCESS' if http_deploy_result.rc == 0 else 'FAILED' }}"
-      - "Cowrie Status: {{ cowrie_status.stdout_lines }}"
-      - "HTTP Status: {{ http_status.stdout_lines }}"
+      - ""
+      - "All Running Containers:"
+      - "{{ all_containers.stdout_lines }}"
+      - ""
+      - "Cowrie Status Details:"
+      - "{{ cowrie_status.stdout_lines }}"
+      - ""
+      - "HTTP Status Details:"
+      - "{{ http_status.stdout_lines }}"
