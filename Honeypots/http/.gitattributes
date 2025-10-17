@@ -1,0 +1,18 @@
+# Ensure shell scripts always use LF line endings (Unix style)
+*.sh text eol=lf
+
+# Docker files should also use LF
+Dockerfile text eol=lf
+docker-compose.yml text eol=lf
+*.conf text eol=lf
+
+# Let Git handle other text files normally
+*.js text
+*.json text
+*.md text
+*.yml text
+*.yaml text
+*.tsx text
+*.ts text
+*.css text
+*.html text
