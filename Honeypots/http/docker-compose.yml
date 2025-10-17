@@ -1,0 +1,89 @@
+# /opt/honeypot/http/docker-compose.yml
+# Custom HTTP/HTTPS Honeypot
+
+services:
+  # CTI Backend API
+  cti-backend:
+    build: ./backend
+    container_name: cti-backend
+    hostname: cti-backend
+    restart: unless-stopped
+    
+    ports:
+      - "4000:4000/tcp"
+    
+    volumes:
+      - ./logs:/var/log/nginx
+    
+    environment:
+      - NODE_ENV=production
+      - TZ=UTC
+    
+    networks:
+      - honeypot-net
+    
+    labels:
+      service.type: "backend"
+      service.name: "cti-backend-api"
+
+  # CTI Cloud Frontend - Main Site
+  cti-frontend:
+    build: ./frontend
+    container_name: cti-frontend
+    hostname: cti-admin
+    restart: unless-stopped
+    depends_on:
+      - cti-backend
+    
+    ports:
+      - "80:80/tcp"
+      - "443:443/tcp"
+      - "8080:8080/tcp"
+    
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - ./logs:/var/log/nginx
+    
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://cti-backend:4000
+      - TZ=UTC
+    
+    networks:
+      - honeypot-net
+    
+    labels:
+      service.type: "frontend"
+      service.name: "cti-admin-dashboard"
+
+  http-honeypot:
+    build: .
+    container_name: http-honeypot
+    hostname: api-server-prod-01
+    restart: unless-stopped
+    
+    ports:
+      - "8888:80/tcp"
+      - "8889:443/tcp"
+    
+    volumes:
+      - ./logs:/var/log/honeypot
+      - ./ssl:/etc/nginx/ssl:ro
+    
+    environment:
+      - LOG_LEVEL=info
+      - ENABLE_WAF_SIMULATION=true
+      - TZ=UTC
+    
+    networks:
+      - honeypot-net
+    
+    labels:
+      honeypot.type: "http-https"
+      honeypot.service: "nginx"
+      honeypot.mitre: "T1190,T1133,T1505.003,T1595"
+
+networks:
+  honeypot-net:
+    driver: bridge

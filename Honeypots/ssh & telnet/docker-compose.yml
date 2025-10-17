@@ -1,0 +1,65 @@
+# /opt/honeypot/cowrie/docker-compose.yml
+# Cowrie SSH/Telnet Honeypot
+
+version: '3.8'
+
+services:
+  # Init container to generate config files and set permissions
+  config-init:
+    image: alpine:latest
+    container_name: cowrie-config-init
+    volumes:
+      - ./config:/config
+      - ./logs:/logs
+      - ./downloads:/downloads
+      - ./tty:/tty
+      - ./init-config.sh:/init-config.sh:ro
+    command: sh /init-config.sh
+
+  cowrie:
+    image: cowrie/cowrie:latest
+    container_name: cowrie-ssh-honeypot
+    hostname: prod-web-01
+    restart: unless-stopped
+    depends_on:
+      config-init:
+        condition: service_completed_successfully
+    
+    ports:
+      - "2222:2222/tcp"   # SSH honeypot
+      - "2223:2223/tcp"   # Telnet honeypot
+    
+    volumes:
+      # Logs
+      - ./logs:/cowrie/var/log/cowrie
+      # Downloaded malware  
+      - ./downloads:/cowrie/var/lib/cowrie/downloads
+      # TTY recordings
+      - ./tty:/cowrie/var/lib/cowrie/tty
+      # Custom config (auto-generated)
+      - ./config/cowrie.cfg:/cowrie/cowrie-git/etc/cowrie.cfg:ro
+      - ./config/userdb.txt:/cowrie/cowrie-git/etc/userdb.txt:ro
+    
+    environment:
+      # Enable JSON logging
+      - COWRIE_JSON_ENABLED=yes
+      - COWRIE_OUTPUT_JSON_LOG=/cowrie/var/log/cowrie/cowrie.json
+      # Timezone
+      - TZ=UTC
+    
+    networks:
+      - honeypot-net
+    
+    labels:
+      honeypot.type: "ssh-telnet"
+      honeypot.service: "cowrie"
+      honeypot.mitre: "T1110,T1078,T1059,T1105,T1071"
+
+networks:
+  honeypot-net:
+    driver: bridge
+
+# Commands to deploy:
+# cd /opt/honeypot/cowrie
+# docker-compose up -d
+# docker-compose logs -f
