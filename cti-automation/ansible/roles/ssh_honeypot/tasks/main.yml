@@ -1,116 +1,75 @@
 ---
-- name: Create honeypot base directories
-  file:
+- name: Check if existing honeypots are present
+  stat:
     path: "{{ item }}"
-    state: directory
-    mode: '0755'
-    owner: "{{ ansible_user }}"
-    group: "{{ ansible_user }}"
   loop:
-    - "{{ honeypot_base_dir }}"
-    - "{{ honeypot_log_dir }}"
-    - "{{ honeypot_config_dir }}"
-    - "{{ honeypot_data_dir }}"
-  become: yes
+    - "{{ honeypot_cowrie_dir }}/docker-compose.yml"
+    - "{{ honeypot_http_dir }}/docker-compose.yml"
+  register: honeypot_files
 
-- name: Create honeypot data subdirectories
-  file:
-    path: "{{ honeypot_data_dir }}/{{ item }}"
-    state: directory
-    mode: '0755'
-    owner: "{{ ansible_user }}"
-    group: "{{ ansible_user }}"
-  loop:
-    - "cowrie/var/log"
-    - "cowrie/var/lib"
-    - "cowrie/etc"
-  become: yes
-
-- name: Copy SSH & Telnet honeypot docker-compose from Honeypots folder
-  copy:
-    src: "{{ playbook_dir }}/../../Honeypots/ssh & telnet/docker-compose.yml"
-    dest: "{{ honeypot_config_dir }}/docker-compose.yml"
-    mode: '0644'
-    owner: "{{ ansible_user }}"
-    group: "{{ ansible_user }}"
-  become: yes
-
-- name: Copy SSH & Telnet honeypot init script from Honeypots folder
-  copy:
-    src: "{{ playbook_dir }}/../../Honeypots/ssh & telnet/init-config.sh"
-    dest: "{{ honeypot_config_dir }}/init-config.sh"
-    mode: '0755'
-    owner: "{{ ansible_user }}"
-    group: "{{ ansible_user }}"
-  become: yes
+- name: Verify all honeypot files exist
+  assert:
+    that:
+      - item.stat.exists
+    fail_msg: "Honeypot file {{ item.item }} not found on target machine"
+    success_msg: "Found honeypot file {{ item.item }}"
+  loop: "{{ honeypot_files.results }}"
 
 - name: Include Docker verification tasks
   include_tasks: docker.yml
 
 - name: Stop existing honeypot containers (cleanup)
   shell: |
-    cd {{ honeypot_config_dir }}
-    docker compose down --remove-orphans || true
-  become_user: "{{ ansible_user }}"
+    cd {{ honeypot_cowrie_dir }} && docker compose down --remove-orphans || true
+    cd {{ honeypot_http_dir }} && docker compose down --remove-orphans || true
+  become_user: "{{ honeypot_user }}"
   ignore_errors: yes
 
 - name: Pull latest honeypot images
   shell: |
-    cd {{ honeypot_config_dir }}
-    docker compose pull
-  become_user: "{{ ansible_user }}"
-  register: pull_result
+    cd {{ item }} && docker compose pull || true
+  loop:
+    - "{{ honeypot_cowrie_dir }}"
+    - "{{ honeypot_http_dir }}"
+  become_user: "{{ honeypot_user }}"
+  ignore_errors: yes
 
-- name: Show image pull results
-  debug:
-    var: pull_result.stdout_lines
-
-- name: Deploy SSH & Telnet honeypots
+- name: Start Cowrie SSH/Telnet honeypot
   shell: |
-    cd {{ honeypot_config_dir }}
+    cd {{ honeypot_cowrie_dir }}
     docker compose up -d
-  become_user: "{{ ansible_user }}"
-  register: deploy_result
+  become_user: "{{ honeypot_user }}"
+  register: cowrie_deploy_result
 
-- name: Show deployment results
-  debug:
-    var: deploy_result.stdout_lines
+- name: Start HTTP honeypot
+  shell: |
+    cd {{ honeypot_http_dir }}
+    docker compose up -d
+  become_user: "{{ honeypot_user }}"
+  register: http_deploy_result
 
 - name: Wait for containers to start
-  wait_for:
-    timeout: 10
+  pause:
+    seconds: 20
 
-- name: Verify honeypot containers are running
+- name: Verify Cowrie containers are running
   shell: |
-    cd {{ honeypot_config_dir }}
+    cd {{ honeypot_cowrie_dir }}
     docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
-  become_user: "{{ ansible_user }}"
-  register: container_status
+  become_user: "{{ honeypot_user }}"
+  register: cowrie_status
 
-- name: Display container status
-  debug:
-    msg: "{{ container_status.stdout_lines }}"
+- name: Verify HTTP containers are running
+  shell: |
+    cd {{ honeypot_http_dir }}
+    docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
+  become_user: "{{ honeypot_user }}"
+  register: http_status
 
-- name: Test SSH honeypot connectivity
-  wait_for:
-    host: "{{ ansible_host }}"
-    port: 2222
-    timeout: 30
-  delegate_to: localhost
-  ignore_errors: yes
-  register: ssh_test
-
-- name: Test Telnet honeypot connectivity
-  wait_for:
-    host: "{{ ansible_host }}"
-    port: 2223
-    timeout: 30
-  delegate_to: localhost
-  ignore_errors: yes
-  register: telnet_test
-
-- name: Show connectivity test results
+- name: Display deployment results
   debug:
     msg:
-      - "SSH Honeypot (port 2222): {{ 'ACCESSIBLE' if ssh_test is succeeded else 'NOT ACCESSIBLE' }}"
-      - "Telnet Honeypot (port 2223): {{ 'ACCESSIBLE' if telnet_test is succeeded else 'NOT ACCESSIBLE' }}"
+      - "Cowrie Deployment: {{ 'SUCCESS' if cowrie_deploy_result.rc == 0 else 'FAILED' }}"
+      - "HTTP Deployment: {{ 'SUCCESS' if http_deploy_result.rc == 0 else 'FAILED' }}"
+      - "Cowrie Status: {{ cowrie_status.stdout_lines }}"
+      - "HTTP Status: {{ http_status.stdout_lines }}"

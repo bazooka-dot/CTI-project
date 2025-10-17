@@ -1,3 +1,12 @@
 ---
-ensure_docker: true
-compose_cmd: "docker compose"
+# Existing honeypot paths on decoy machine
+honeypot_base_dir: "/home/ubuntu/honeypot"
+honeypot_cowrie_dir: "/home/ubuntu/honeypot/cowrie"
+honeypot_http_dir: "/home/ubuntu/honeypot/http"
+honeypot_user: "ubuntu"
+
+# Port configurations
+ssh_honeypot_port: 2222
+telnet_honeypot_port: 2223
+http_honeypot_port: 80
+https_honeypot_port: 443

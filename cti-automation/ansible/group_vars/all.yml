@@ -1,17 +1,12 @@
 ---
-# Fleet: single ssh honeypot; extend list to add more
-honeypots:
-  - name: hp-ssh-1
-    local_src: "{{ playbook_dir }}/../../configs/honeypots/hp-ssh-1"
-    remote_dir: /opt/honeypots/hp-ssh-1
-    compose_file: docker-compose.yml
-    initializer: initializer.sh    # optional; role checks existence
-    health:
-      scheme: tcp
-      port: 2222
-      retries: 4
-      delay: 3
+# Use existing honeypot installation on decoy machine
+honeypot_base_dir: "/home/ubuntu/honeypot"
+honeypot_cowrie_dir: "/home/ubuntu/honeypot/cowrie"
+honeypot_http_dir: "/home/ubuntu/honeypot/http"
+honeypot_user: "ubuntu"
 
-# Global behaviour
-ensure_docker: true
-compose_cmd: "docker compose"  # set to "docker-compose" if your host uses v1
+# Ports configuration
+ssh_honeypot_port: 2222
+telnet_honeypot_port: 2223
+http_honeypot_port: 80
+https_honeypot_port: 443

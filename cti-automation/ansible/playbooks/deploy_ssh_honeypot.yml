@@ -1,116 +1,42 @@
 ---
-- name: Create honeypot base directories
-  file:
-    path: "{{ item }}"
-    state: directory
-    mode: '0755'
-    owner: "{{ ansible_user }}"
-    group: "{{ ansible_user }}"
-  loop:
-    - "{{ honeypot_base_dir }}"
-    - "{{ honeypot_log_dir }}"
-    - "{{ honeypot_config_dir }}"
-    - "{{ honeypot_data_dir }}"
-  become: yes
+- name: Manage Existing CTI Honeypots
+  hosts: honeypots
+  become: no
+  gather_facts: yes
+  
+  pre_tasks:
+    - name: Display target information
+      debug:
+        msg: 
+          - "Managing honeypots on: {{ inventory_hostname }}"
+          - "Target IP: {{ ansible_host }}"
+          - "User: {{ ansible_user }}"
+          - "Honeypot Base Dir: {{ honeypot_base_dir }}"
+    
+    - name: Check connectivity
+      ping:
+    
+    - name: Verify target OS
+      assert:
+        that:
+          - ansible_distribution == "Ubuntu"
+        fail_msg: "Target must be Ubuntu"
+        success_msg: "Target OS verified: {{ ansible_distribution }} {{ ansible_distribution_version }}"
 
-- name: Create honeypot data subdirectories
-  file:
-    path: "{{ honeypot_data_dir }}/{{ item }}"
-    state: directory
-    mode: '0755'
-    owner: "{{ ansible_user }}"
-    group: "{{ ansible_user }}"
-  loop:
-    - "cowrie/var/log"
-    - "cowrie/var/lib"
-    - "cowrie/etc"
-  become: yes
+  roles:
+    - ssh_honeypot
 
-- name: Copy SSH & Telnet honeypot docker-compose from Honeypots folder
-  copy:
-    src: "{{ playbook_dir }}/../../Honeypots/ssh & telnet/docker-compose.yml"
-    dest: "{{ honeypot_config_dir }}/docker-compose.yml"
-    mode: '0644'
-    owner: "{{ ansible_user }}"
-    group: "{{ ansible_user }}"
-  become: yes
-
-- name: Copy SSH & Telnet honeypot init script from Honeypots folder
-  copy:
-    src: "{{ playbook_dir }}/../../Honeypots/ssh & telnet/init-config.sh"
-    dest: "{{ honeypot_config_dir }}/init-config.sh"
-    mode: '0755'
-    owner: "{{ ansible_user }}"
-    group: "{{ ansible_user }}"
-  become: yes
-
-- name: Include Docker verification tasks
-  include_tasks: docker.yml
-
-- name: Stop existing honeypot containers (cleanup)
-  shell: |
-    cd {{ honeypot_config_dir }}
-    docker compose down --remove-orphans || true
-  become_user: "{{ ansible_user }}"
-  ignore_errors: yes
-
-- name: Pull latest honeypot images
-  shell: |
-    cd {{ honeypot_config_dir }}
-    docker compose pull
-  become_user: "{{ ansible_user }}"
-  register: pull_result
-
-- name: Show image pull results
-  debug:
-    var: pull_result.stdout_lines
-
-- name: Deploy SSH & Telnet honeypots
-  shell: |
-    cd {{ honeypot_config_dir }}
-    docker compose up -d
-  become_user: "{{ ansible_user }}"
-  register: deploy_result
-
-- name: Show deployment results
-  debug:
-    var: deploy_result.stdout_lines
-
-- name: Wait for containers to start
-  wait_for:
-    timeout: 10
-
-- name: Verify honeypot containers are running
-  shell: |
-    cd {{ honeypot_config_dir }}
-    docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
-  become_user: "{{ ansible_user }}"
-  register: container_status
-
-- name: Display container status
-  debug:
-    msg: "{{ container_status.stdout_lines }}"
-
-- name: Test SSH honeypot connectivity
-  wait_for:
-    host: "{{ ansible_host }}"
-    port: 2222
-    timeout: 30
-  delegate_to: localhost
-  ignore_errors: yes
-  register: ssh_test
-
-- name: Test Telnet honeypot connectivity
-  wait_for:
-    host: "{{ ansible_host }}"
-    port: 2223
-    timeout: 30
-  delegate_to: localhost
-  ignore_errors: yes
-  register: telnet_test
-
-- name: Show connectivity test results
-  debug:
-    msg:
-      - "SSH Honeypot (port 2222): {{ 'ACCESSIBLE' if ssh_test is succeeded else 'NOT ACCESSIBLE' }}"
-      - "Telnet Honeypot (port 2223): {{ 'ACCESSIBLE' if telnet_test is succeeded else 'NOT ACCESSIBLE' }}"
+  post_tasks:
+    - name: Display final container status
+      shell: docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+      become_user: "{{ ansible_user }}"
+      register: final_status
+    
+    - name: Show management summary
+      debug:
+        msg:
+          - "=== Honeypot Management Complete ==="
+          - "{{ final_status.stdout_lines }}"
+          - "SSH Honeypot: {{ ansible_host }}:{{ ssh_honeypot_port }}"
+          - "Telnet Honeypot: {{ ansible_host }}:{{ telnet_honeypot_port }}"
+          - "HTTP Honeypot: http://{{ ansible_host }}:{{ http_honeypot_port }}"
