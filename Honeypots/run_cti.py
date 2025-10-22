@@ -26,7 +26,7 @@ def main():
     
     # Auto-discover SSH logs
     ssh_paths = [
-        "ssh & telnet/logs/cowrie.json",
+        "cowrie/logs/cowrie.json",
         "cowrie.json",
         "ssh.json",
         "logs/cowrie.json"
