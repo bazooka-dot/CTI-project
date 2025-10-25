@@ -16,16 +16,7 @@ class LogParser:
         )
     
     def parse_line(self, line: str, file_type: str) -> Optional[Dict]:
-        """
-        Parse a single log line based on file type
-        
-        Args:
-            line: The log line to parse
-            file_type: Type of log file (access.log, access.json, attacks.log)
-        
-        Returns:
-            Dictionary with parsed data or None if parsing fails
-        """
+
         try:
             if file_type == 'access.json':
                 return self.parse_json_log(line)

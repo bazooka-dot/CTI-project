@@ -164,9 +164,9 @@ class MultiTopicConsumer:
         """Start consuming messages"""
         self.running = True
         
-        print("🎧 Listening for messages...")
-        print("📊 Real-time analysis enabled")
-        print("🛑 Press Ctrl+C to stop and see report\n")
+        print("Listening for messages...")
+        print("Real-time analysis enabled")
+        print("Press Ctrl+C to stop and see report\n")
         print("="*60 + "\n")
         
         message_count = 0
